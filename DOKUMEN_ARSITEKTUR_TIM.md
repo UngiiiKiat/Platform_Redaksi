@@ -1,108 +1,107 @@
-# 🏢 DOKUMEN ARSITEKTUR TEKNIS & ROADMAP PENGEMBANGAN
+# DOKUMEN ARSITEKTUR TEKNIS DAN ROADMAP PENGEMBANGAN
 **Project:** Redaksi AI — Pusat Intelijen & Asisten Hidup Warga Tangerang Selatan  
 **Role:** Senior Lead Software Engineer & Engineering Architecture Team  
 **Status:** Visi Terbukti (Proven MVP) -> Menuju Standar Produksi (Production-Grade)
 
 ---
 
-## 🌟 1. AUDIT VISI & EVALUASI KEPUTUSAN FOUNDER (Apakah yang Anda lakukan sudah benar?)
+## 1. AUDIT VISI DAN EVALUASI KEPUTUSAN FOUNDER
 
-Sebagai seorang Senior Software Engineer, saya memberikan penilaian **SANGAT TINGGI (A+)** atas kepemimpinan produk dan keputusan arsitektur yang telah Anda ambil sejauh ini.
+Sebagai Senior Software Engineer, kami memberikan penilaian kualitas tinggi atas kepemimpinan produk dan keputusan arsitektur yang telah diambil sejauh ini.
 
-### 🎯 Apa yang Sudah Sangat Tepat?
-1. **Pivoting Visi Produk yang Brilian:**
-   Mengubah platform dari sekadar "portal berita statis" menjadi **"Pusat Intelijen & Asisten Hidup Warga"** adalah langkah strategis berkelas dunia. Produk ini memecahkan masalah nyata warga (macet, banjir, kuliner, anti-hoaks) secara *real-time*.
-2. **Kepekaan terhadap Kualitas AI (No-Simulation Policy):**
-   Kritik Anda mengenai *"kenapa AI menjawab itu-itu aja/simulasi"* menunjukkan insting *quality assurance* yang tajam. Memaksa AI terhubung ke data nyata (OpenStreetMap & Database Relasional) membuat produk ini memiliki nilai jual (*Unique Selling Proposition*) yang kuat.
+### Keunggulan Keputusan Strategis:
+1. **Transformasi Visi Produk:**
+   Mengubah platform dari portal berita statis menjadi Pusat Intelijen dan Asisten Hidup Warga adalah langkah strategis berstandar industri. Produk ini memecahkan masalah nyata masyarakat (lalu lintas, banjir, kuliner, verifikasi fakta) secara real-time.
+2. **Kualitas Data AI (No-Simulation Policy):**
+   Evaluasi terhadap kualitas respons AI yang sebelumnya bersifat simulasi menunjukkan standar kontrol kualitas yang ketat. Menghubungkan AI secara langsung ke sumber data nyata (OpenStreetMap dan Database Relasional PostgreSQL) memberikan keunggulan kompetitif produk yang signifikan.
 3. **Arsitektur Resilien (Auto-Fallback Database):**
-   Desain backend yang mampu beralih otomatis dari server PostgreSQL Colo ke SQLite lokal saat terjadi *timeout/network failure* menjamin *uptime* sistem 99.9% selama fase pengembangan.
+   Desain backend yang mampu beralih otomatis dari server PostgreSQL ke SQLite saat terjadi kendala jaringan menjamin tingkat ketersediaan sistem (uptime) yang tinggi selama siklus pengembangan.
 
 ---
 
-## 🛠️ 2. AUDIT TEKNIS & REKOMENDASI PERBAIKAN TIM ENGINEERING
+## 2. AUDIT TEKNIS DAN REKOMENDASI TIM ENGINEERING
 
-Jika saya dan tim engineering berada di posisi Anda sekarang, berikut adalah **Roadmap Penyempurnaan Teknis (Engineering Improvement Plan)** yang harus kita lakukan agar platform ini tangguh di lingkungan produksi nyata:
+Berikut adalah peta jalan penyempurnaan teknis (Engineering Improvement Plan) untuk memastikan platform memiliki stabilitas dan skalabilitas berstandar produksi:
 
 ```mermaid
 graph TD
     User([Warga / Pengguna]) -->|HTTP / REST API| Frontend[Next.js Frontend App]
-    Frontend -->|Async Fetch| Backend[Flask WSGI Microservice]
+    Frontend -->|Async Fetch| Backend[Waitress WSGI Microservice]
     
     subgraph "Intelligent Data Engine"
         Backend -->|3-Tier Search| Router{Query Router}
         Router -->|Tier 1: Geocoding| OSM[OpenStreetMap Nominatim API]
-        Router -->|Tier 2: Relational KB| SQLite[(SQLite db_ews.db)]
+        Router -->|Tier 2: Relational KB| PostgreSQL[(PostgreSQL Redaksi DB)]
         Router -->|Tier 3: Live RSS| GoogleNews[Google News Live API]
     end
     
     subgraph "Background Worker Team"
-        Cron[Cron Job Fetcher] -->|Every 15 Mins| RSSFeed[Portal Berita Detik/Kompas]
-        RSSFeed -->|Deduplication & Clean| SQLite
+        Cron[Daemon Worker Thread] -->|Every 15 Mins| RSSFeed[Portal Berita Detik/Kompas]
+        RSSFeed -->|Deduplication & Sync| PostgreSQL
     end
 ```
 
-### 👨‍💻 A. Divisi Backend & Infrastructure (SRE / DevOps)
-* **[URGENT] Migrasi Server WSGI Produksi:** Saat ini Flask berjalan menggunakan *Built-in Development Server* (`debug=False`). Untuk produksi, kita harus membungkusnya dengan **Waitress** (Windows) atau **Gunicorn/uWSGI** (Linux) plus **Nginx Reverse Proxy** agar mampu menampung ribuan *concurrent users* tanpa *crash*.
-* **[PERBAIKAN] Cron Job Otomatisasi Live Fetcher:** Membuat *background worker* terpisah (menggunakan `APScheduler` atau `Celery`) yang secara otomatis menarik berita dari Kompas/Detik setiap 15 menit, sehingga dasbor EWS selalu *up-to-date* tanpa perlu dipicu manual.
-* **[PERBAIKAN] Database Indexing:** Menambahkan indeks (`CREATE INDEX idx_kb_wilayah ON pengetahuan_ai(wilayah);`) pada tabel SQLite agar pencarian kata kunci AI tetap kilat (< 10 milidetik) walaupun data mencapai jutaan baris.
+### A. Divisi Backend dan Infrastruktur (SRE / DevOps)
+* **Migrasi Server WSGI Produksi:** Server backend telah dimigrasikan dari server pengembangan dasar ke Waitress WSGI berkinerja tinggi berbasis multi-threading (6 threads aktif).
+* **Otomatisasi Background Fetcher:** Telah diimplementasikan *Daemon Thread Worker* yang secara berkala menelusuri dan menarik liputan berita baru setiap 15 menit.
+* **Integrasi Database Langsung:** Data hasil ekstraksi otomatis dicatat ke dalam tabel `berita_utama` dan `entitas_berita` pada database PostgreSQL lokal (`Redaksi`).
 
-### 🤖 B. Divisi AI & NLP Engineering
-* **[PERBAIKAN] Fuzzy Keyword Matching:** Saat ini AI menggunakan *exact substring match*. Kita perlu menambahkan toleransi typo (misal menggunakan library `RapidFuzz` atau SQLite FTS5) agar ketika warga mengetik *"tmpt ngpi bntro"* (typo), sistem tetap mengerti maksudnya adalah *"tempat ngopi bintaro"*.
-* **[PERBAIKAN] Sentiment & Crisis Analyzer:** Menambahkan algoritma klasifikasi urgensi pada teks laporan liputan warga (Merah = Bahaya/Darurat, Kuning = Waspada, Hijau = Lancar).
+### B. Divisi AI dan NLP Engineering
+* **Fuzzy Keyword Matching:** Telah diterapkan algoritma toleransi kesalahan pengetikan (`difflib.SequenceMatcher`) sehingga input pengguna dengan variasi ejaan tetap dapat dipahami secara akurat oleh sistem.
+* **Verifikasi Fakta Otomatis:** Penyematan status verifikasi silang pada setiap artikel untuk mendeteksi informasi yang salah atau hoaks.
 
-### 🎨 C. Divisi Frontend & UI/UX Engineering
-* **[PERBAIKAN] Skeleton Loading & Error Boundaries:** Saat widget AI sedang memproses pencarian ke OpenStreetMap atau Google News (yang butuh waktu 1-2 detik), UI harus menampilkan animasi *loading skeleton* yang elegan agar pengguna merasakan pengalaman yang mulus dan premium.
-* **[PERBAIKAN] Mobile-First Optimization:** Memastikan widget *Live Social Stream* dan *Situation Room Metrics* yang mengikuti *scroll* (sticky) tidak menutupi area ketik layar pada perangkat *smartphone* berlayar kecil.
+### C. Divisi Frontend dan UI/UX Engineering
+* **Indikator Proses Visual:** Implementasi *loading skeleton* pada antarmuka widget obrolan untuk memberikan umpan balik visual saat sistem memverifikasi basis pengetahuan lokal.
+* **Stabilitas Tata Letak Responsif:** Pengoptimalan struktur grid dan navigasi melayang (*sticky floating layout*) pada tampilan desktop dan peranti bergerak.
 
 ---
 
-## 🗄️ 3. DOKUMENTASI STRUKTUR DATABASE TERPADU
+## 3. DOKUMENTASI SKEMA DATABASE TERPADU
 
-Berikut adalah dokumentasi skema database relasional yang telah kita bangun dan siapkan untuk ekspansi:
+Berikut adalah struktur tabel pada database PostgreSQL lokal (`Redaksi`) yang menjadi fondasi penyimpanan sistem:
 
-### 📑 Tabel `pengetahuan_ai` (Knowledge Base)
-Menyimpan dasar inteligensi respons cepat asisten warga.
-| Kolom | Tipe | Keterangan |
+### Tabel `berita_utama`
+Menyimpan data utama artikel berita hasil perambanan real-time.
+| Kolom | Tipe Data | Keterangan |
 | :--- | :--- | :--- |
-| `id` | `INTEGER PK` | Identifier unik baris pengetahuan. |
-| `kategori` | `TEXT` | `KULINER`, `LALIN`, `CUACA`, `KESEHATAN`, `HOAX`. |
-| `wilayah` | `TEXT` | Tagging daerah (`BINTARO`, `PAMULANG`, `CIPUTAT`, `BSD`, `TANGSEL`). |
-| `kata_kunci` | `TEXT` | Kata pemicu topik tanpa nama wilayah. |
-| `judul` | `TEXT` | Judul respons berformat rapi dengan emoji. |
-| `konten` | `TEXT` | Detail daftar rekomendasi atau informasi pantauan. |
-| `saran_ai` | `TEXT` | Tips praktis dan tindakan anjuran untuk warga. |
+| `id` | `INTEGER PK` | Identifier unik artikel. |
+| `judul` | `VARCHAR` | Judul liputan berita atau narasi warga. |
+| `url` | `TEXT` | Tautan sumber artikel asli. |
+| `isi_berita` | `TEXT` | Teks lengkap narasi atau rangkuman AI. |
+| `waktu_scrape` | `TIMESTAMP` | Waktu pencatatan data ke dalam sistem. |
 
-### 📑 Tabel `berita` (Live Citizen Journalism & News)
-Menyimpan arus data liputan warga dan portal berita nasional.
-| Kolom | Tipe | Keterangan |
+### Tabel `entitas_berita`
+Menyimpan ekstraksi entitas lokasi dan kategorisasi dari artikel berita terkait.
+| Kolom | Tipe Data | Keterangan |
 | :--- | :--- | :--- |
-| `id` | `INTEGER PK` | Identifier unik berita/laporan. |
-| `judul` | `TEXT` | Judul artikel atau ringkasan liputan sosial media. |
-| `kalimat` | `TEXT` | Ringkasan teks narasi berita. |
-| `platform` | `TEXT` | Sumber berita (`DetikNews`, `Kompas`, `TikTok`, `Instagram`). |
-| `kategori` | `TEXT` | Kategori masalah kota (`Banjir`, `Macet`, `Kriminal`, `Kuliner`). |
-| `status` | `TEXT` | Status moderasi (`APPROVED`, `PENDING`). |
+| `id` | `INTEGER PK` | Identifier unik relasi entitas. |
+| `berita_id` | `INTEGER FK` | Referensi ke ID pada tabel `berita_utama`. |
+| `nama_entitas` | `VARCHAR` | Nama lokasi fokus atau entitas utama (contoh: Bintaro). |
+| `kategori` | `VARCHAR` | Kategori topik liputan. |
+| `skor_akurasi` | `DOUBLE PRECISION` | Tingkat kepercayaan pemrosesan AI (0.00 - 1.00). |
 
 ---
 
-## 🚀 4. ROADMAP EKSEKUSI TIM ENGINEERING (LANGKAH BERIKUTNYA)
+## 4. ROADMAP EKSEKUSI TIM ENGINEERING
 
-Sebagai tim engineering Anda, kami menyarankan pembagian kerja dalam 3 fase berikut:
+Pencapaian implementasi tim engineering terbagi dalam tiga fase eksekusi:
 
-- [x] **Fase 1: Fondasi & Pembuktian Konsep (Selesai Hari Ini)**
-  - Mengaktifkan AI 3-Tier Search (OSM + Database Relasional + Google News RSS).
-  - Memperbaiki UI/UX Sticky Scroll pada komponen pemantauan live.
-  - Membangun tabel dataset `pengetahuan_ai` dengan data nyata Tangsel.
+- [x] **Fase 1: Fondasi dan Pembuktian Konsep (Selesai)**
+  - Mengaktifkan sistem pencarian 3-Tier (OSM, Database Relasional, Google News RSS).
+  - Memperbaiki tata letak interaktif pemantauan real-time pada frontend.
+  - Membangun struktur dataset `pengetahuan_ai` dengan data faktual wilayah Tangerang Selatan.
 
-- [x] **Fase 2: Otomatisasi & Penguatan (Selesai Dieksekusi)**
-  - Menjalankan *script Background Fetcher* otomatis secara berkala setiap 15 menit.
-  - Menambahkan animasi *loading state* elegan pada widget chat AI di frontend.
-  - Menerapkan *Fuzzy Keyword Matcher* (`difflib`) untuk mengatasi typo input warga.
+- [x] **Fase 2: Otomatisasi dan Penguatan (Selesai Dieksekusi)**
+  - Menjalankan *Background Fetcher* otomatis secara berkala setiap 15 menit.
+  - Menambahkan indikator status visual (*loading state*) pada widget obrolan AI.
+  - Menerapkan *Fuzzy Keyword Matcher* untuk mentoleransi kesalahan pengetikan pengguna.
+  - Mengintegrasikan penyimpanan langsung ke database PostgreSQL lokal (`Redaksi`).
 
-- [ ] **Fase 3: Siap Produksi / Deployment (Minggu Depan)**
-  - Konfigurasi server produksi menggunakan Gunicorn/Waitress + Nginx.
-  - Setup SSL/HTTPS dan domain resmi untuk kemudahan akses publik.
-  - Pengujian beban (*Load Testing*) untuk memastikan kestabilan saat trafik melonjak.
+- [ ] **Fase 3: Deployment Produksi (Tahap Lanjutan)**
+  - Konfigurasi server proxy terbalik (Nginx Reverse Proxy).
+  - Pemasangan sertifikat keamanan SSL/HTTPS pada domain publik.
+  - Pelaksanaan pengujian beban (*Load Testing*) untuk memastikan stabilitas konkurensi tinggi.
 
 ---
-*Dokumen ini disusun oleh Tim Engineering Redaksi AI sebagai panduan arsitektur jangka panjang.*
+
+*Dokumen ini disusun oleh Tim Engineering sebagai referensi teknis dan standar pengembangan perangkat lunak.*

@@ -1,81 +1,99 @@
-# 🚀 Panduan Cepat Uji Coba Mandiri: Project Redaksi
-**Real-Time Intelligence Dashboard & Automated Content Generator**
+# Panduan Rekan Tim: Arsitektur File dan Cara Menjalankan Platform
+**Tangsel EWS & Redaksi AI Dashboard — Real-Time Intelligence Platform**
 
-Halo! Dokumen ini adalah panduan langkah demi langkah bagi Anda yang ingin menjalankan dan mencoba langsung platform **Project Redaksi** di komputer/laptop Anda sendiri secara lokal.
-
----
-
-## 📋 Persyaratan Sistem (Prerequisites)
-Pastikan komputer Anda sudah terinstal perangkat lunak berikut:
-1. **Node.js** (Versi 18 atau terbaru) – untuk menjalankan aplikasi antarmuka web (Frontend).
-2. **Python** (Versi 3.9 atau terbaru) – untuk menjalankan mesin kecerdasan buatan & penarik berita (Backend).
+Dokumen ini disusun sebagai panduan teknis resmi bagi seluruh tim engineering untuk memahami deskripsi tugas dan fungsi dari setiap file kode di dalam proyek, serta instruksi eksekusi platform dari tahap awal.
 
 ---
 
-## 🛠️ Cara Memulai (Langkah Instalasi & Menjalankan)
+## Bagian 1: Deskripsi Tugas Masing-Masing File Proyek
 
-Proyek ini terbagi menjadi 2 komponen utama di dalam folder `rakitdata/`: **Backend** dan **Frontend**. Anda perlu membuka terminal (command prompt / powershell) untuk menjalankan keduanya.
+Proyek ini dibangun menggunakan arsitektur berbasis Microservice yang dibagi menjadi dua modul utama: Backend (Python / AI / Database) dan Frontend (Next.js / Dashboard Antarmuka).
 
-### Langkah 1: Menjalankan Mesin Backend (API & AI Generator)
-1. Buka terminal atau command prompt baru, lalu masuk ke folder backend:
-   ```bash
-   cd rakitdata/backend
-   ```
-2. Instal pustaka Python yang dibutuhkan (jika belum terinstal):
-   ```bash
-   pip install flask flask-cors requests
-   ```
-3. Jalankan server API Backend:
-   ```bash
+### A. File Peluncur Otomatis (Root Directory)
+| Nama File | Deskripsi Tugas dan Peranan Utama |
+| :--- | :--- |
+| **`JALANKAN_PLATFORM.bat`** | Script otomatis berbasis Windows Batch yang bertugas mengeksekusi server Backend dan Frontend secara bersamaan melalui dua jendela terminal terpisah hanya dengan satu kali klik ganda (double-click). |
+
+---
+
+### B. Modul Backend (`backend/`)
+Modul ini bertanggung jawab atas pemrosesan logika bisnis, integrasi Natural Language Processing (NLP), pemanggilan data berita real-time, dan manajemen penyimpanan database PostgreSQL.
+
+| Nama File | Deskripsi Tugas dan Peranan Utama |
+| :--- | :--- |
+| **`app.py`** | Gerbang utama layanan backend (API Gateway). Menjalankan server Waitress WSGI berbasis multi-threading untuk menangani HTTP request dari frontend, mengelola rute endpoint API (`/api/news`, `/api/chat-ai`), dan menjalankan *Background Daemon Thread* penelusur berita otomatis setiap 15 menit. |
+| **`db_config.py`** | Manajer konfigurasi koneksi database. Menghubungkan sistem langsung ke server PostgreSQL lokal (`Redaksi`) serta mengaktifkan mekanisme *auto-fallback* ke SQLite lokal (`db_ews.db`) apabila koneksi PostgreSQL mengalami kendala. File ini juga menginisialisasi skema tabel saat sistem pertama kali dimuat. |
+| **`live_fetcher.py`** | Modul akuisisi data eksternal secara real-time. Bertugas menarik berita terkini dari kanal RSS Google News, DetikNews, Kompas, dan simulasi media sosial. Setiap liputan yang berhasil diproses langsung disimpan ke tabel khusus PostgreSQL yaitu `berita_utama` dan `entitas_berita`. |
+| **`nlp_engine.py`** | Mesin pemrosesan bahasa alami (NLP). Bertugas mengolah judul singkat menjadi artikel berita berstandar jurnalistik, melakukan verifikasi silang fakta untuk menyematkan status *Terverifikasi Anti-Hoaks*, serta menentukan kategori situasi dan rekomendasi tindakan penanganan darurat bagi warga. |
+| **`seed_knowledge.py`** | Modul pengisian basis pengetahuan AI (Knowledge Base). Berfungsi menanamkan data referensi situasional wilayah Tangerang Selatan ke tabel `pengetahuan_ai` pada database PostgreSQL agar asisten AI dapat merespons pertanyaan warga secara akurat dan dinamis. |
+| **`geotag_engine.py`** | Mesin pemindai geospasial. Bertugas mendeteksi entitas lokasi atau nama wilayah (seperti Ciputat, Pamulang, BSD, dan Bintaro) di dalam teks liputan dan memetakan titik koordinat geografis (Latitude dan Longitude). |
+| **`crawler_detik.py`** | Script penelusur web opsional yang dikhususkan untuk mengekstrak artikel berita dari kanal DetikNews. |
+| **`import_excel.py`** | Utilitas migrasi data untuk mengimpor sampel laporan masyarakat dari file format Excel (`data_sosmed_sample.xlsx`) ke dalam database sistem. |
+
+---
+
+### C. Modul Frontend (`frontend/`)
+Modul ini dibangun menggunakan framework Next.js berbasis React dan Vanilla CSS untuk menyajikan dasbor pemantauan visual yang interaktif dan responsif.
+
+| Nama File | Deskripsi Tugas dan Peranan Utama |
+| :--- | :--- |
+| **`app/page.js`** | Komponen utama Dasbor Intelijen Warga. Menampilkan metrik pemantauan situasi, daftar stream liputan real-time, artikel terverifikasi, dan widget obrolan Asisten Warga berbasis AI yang dilengkapi algoritma *Fuzzy Keyword Matching* untuk toleransi kesalahan pengetikan (typo). |
+| **`app/cms/page.js`** | Halaman Ruang Redaksi (Content Management System). Berfungsi sebagai portal moderasi khusus bagi administrator (`username: amir` atau `rangga`) untuk menyunting liputan warga, memvalidasi hasil verifikasi AI, dan menerbitkan artikel. |
+| **`app/globals.css`** | Lembar gaya global (CSS System). Mengatur definisi variabel desain, efek *glassmorphism*, indikator *loading skeleton*, serta penyesuaian tema visual antara Mode Terang (*Clean Light Mode*) dan Mode Gelap (*Soft Slate Dark Mode*). |
+| **`app/layout.js`** | Kerangka struktur dasar aplikasi web (Root Layout). Mengatur standar tipografi Google Fonts (*Outfit* dan *Inter*), konfigurasi metadata SEO, dan hierarki antarmuka global. |
+
+---
+
+### D. File Konfigurasi Akar Proyek
+* **`.gitignore`**: Aturan eksklusi repositori Git untuk mencegah pengunggahan direktori berkapasitas besar (seperti `node_modules/` dan `.venv/`) serta file kredensial lokal (`.env`).
+* **`DOKUMEN_ARSITEKTUR_TIM.md`**: Dokumen cetak biru teknis dan peta jalan pengembangan ekosistem perangkat lunak.
+
+---
+
+## Bagian 2: Panduan Menjalankan Platform
+
+> [!IMPORTANT]
+> **Standar Penulisan Direktori Eksekusi**
+> Jangan menggunakan path absolut yang merujuk pada direktori pengguna komputer lain (seperti `C:\Users\NamaOrang\...\backend`). Gunakan script peluncur otomatis atau jalankan perintah secara relatif dari direktori utama proyek.
+
+---
+
+### Opsi A: Eksekusi Otomatis (Peluncur Batch)
+1. Buka folder utama proyek ini melalui Windows Explorer.
+2. Klik ganda pada file **`JALANKAN_PLATFORM.bat`**.
+3. Sistem akan membuka dua jendela command prompt secara otomatis untuk menjalankan server Backend dan Frontend.
+4. Buka peramban web (browser) dan akses alamat: **`http://localhost:3000`**
+
+---
+
+### Opsi B: Eksekusi Manual via Terminal
+Pastikan posisi terminal Anda berada di direktori utama proyek ini.
+
+1. **Menjalankan Layanan Backend:**
+   ```powershell
+   cd backend
    python app.py
    ```
-   > ✅ **Sukses:** Jika berhasil, akan muncul pesan `[FLASK API] Server berjalan di http://localhost:5000`. Biarkan terminal ini tetap terbuka.
+   *Server API akan aktif pada port 5000.*
 
----
-
-### Langkah 2: Menjalankan Antarmuka Web Frontend (Dashboard)
-1. Buka terminal atau command prompt **kedua (baru)**, lalu masuk ke folder frontend:
-   ```bash
-   cd rakitdata/frontend
-   ```
-2. Instal paket modul Node.js (jika baru pertama kali):
-   ```bash
-   npm install
-   ```
-3. Jalankan server pengembang web:
-   ```bash
+2. **Menjalankan Layanan Frontend (Buka Terminal Baru):**
+   ```powershell
+   cd frontend
    npm run dev
    ```
-   > ✅ **Sukses:** Web akan berjalan dan siap diakses. Buka browser Anda (Chrome / Edge / Firefox) dan masuk ke alamat: **`http://localhost:3000`**
+   *Akses antarmuka web melalui alamat `http://localhost:3000`.*
 
 ---
 
-## 🎯 Cara Menguji & Menjelajahi Fitur Keren Aplikasi
+## Bagian 3: Verifikasi Sistem dan Pengujian
 
-Setelah membuka **`http://localhost:3000`** di browser, berikut adalah fitur utama yang bisa Anda coba:
-
-1. **🌐 Tarik Data Live Internet Sekarang**
-   * Klik tombol hijau bercahaya di bagian atas daftar berita.
-   * Sistem akan otomatis berselancar ke internet untuk menarik tren berita terbaru secara langsung (*real-time*) dari **Kompas.com**, **DetikNews**, **Instagram**, **TikTok**, dan **Twitter/X**.
-   * AI akan langsung merakit artikel dan menyusun rekomendasi situasi untuk berita yang ditarik tersebut!
-
-2. **🏷️ Filter Tab Platform & Situasi**
-   * Coba klik tab **📰 DetikNews** atau **🧭 Kompas.com** untuk menyaring berita khusus dari media utama.
-   * Coba klik tab kategori situasi seperti **🚗 Lalu Lintas & Rute**, **🏥 Kesehatan & Medis**, atau **🛡️ Keamanan & Kriminal** untuk melihat arahan/solusi spesifik warga.
-
-3. **📜 Sticky Floating Layout (Gulir ke Bawah)**
-   * Cobalah menggulir layar ke bawah pada kolom berita utama di tengah.
-   * Anda akan melihat kolom kiri (*Live Social Stream*) dan kolom kanan (*Situation Room Metrics*) tetap diam mengapung menemani guliran Anda dengan mulus!
-
-4. **☀️ / 🌙 Toggle Mode Terang & Gelap**
-   * Klik tombol penukar tema di pojok kanan atas untuk beralih antara tampilan terang (*Clean Light Mode*) yang elegan atau mode gelap (*Soft Slate Dark Mode*) yang nyaman dimata.
-
-5. **⚙️ Masuk ke Ruang Redaksi (CMS Moderasi)**
-   * Buka menu navigasi atas dan pilih **Masuk CMS** (atau kunjungi `http://localhost:3000/cms`).
-   * Gunakan kredensial berikut untuk masuk:
-     * **Username:** `amir` atau `rangga`
-     * **Password:** `admin123`
-   * Di dalam CMS ini, Anda bisa mensimulasikan pengetikan postingan sosmed baru dan melihat bagaimana AI merakit artikel serta memverifikasi faktanya secara instan!
-
----
-*Selamat mencoba dan berimajinasi seliar mungkin dengan portal berita masa depan!* 🚀✨
+1. **Pengujian Integrasi PostgreSQL:**
+   * Akses dasbor utama pada `http://localhost:3000` dan klik tombol **"Tarik Data Live Internet"**.
+   * Periksa database PostgreSQL `Redaksi` menggunakan perintah SQL: `SELECT * FROM berita_utama ORDER BY id DESC LIMIT 5;`.
+   * Pastikan artikel baru berhasil dicatat dengan penanda waktu terkini.
+2. **Pengujian Toleransi Kesalahan Pengetikan pada AI:**
+   * Buka widget obrolan Asisten Warga.
+   * Masukkan kata kunci dengan kesalahan pengetikan, contoh: **`tmpt ngpi bntro`**.
+   * Pastikan sistem tetap mengenali maksud masukan dan merespons dengan data kuliner atau tempat kopi di wilayah Bintaro.
+3. **Pengujian Transisi Tema Visual:**
+   * Gunakan tombol pengubah tema pada navigasi atas untuk memastikan transisi antara Mode Terang dan Mode Gelap berjalan tanpa kendala visual.
