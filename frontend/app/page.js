@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function HomePage() {
   const [berita, setBerita] = useState([]);
@@ -16,6 +16,11 @@ export default function HomePage() {
     { sender: 'ai', text: '🤖 Halo! Saya Asisten Intelijen Warga Redaksi AI. Tanyakan info lalu lintas, cuaca, kuliner viral, atau verifikasi hoaks di Tangerang Selatan!' }
   ]);
   const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, chatLoading]);
 
   const handleSendChat = async (e) => {
     e.preventDefault();
@@ -339,10 +344,28 @@ export default function HomePage() {
         {/* Kolom Tengah: Main AI Articles & Universal Recommendations */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Menganalisis tren & menyusun rekomendasi situasional...</div>
+            <div className="card-surface" style={{ padding: '50px 30px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', animation: 'fadeIn 0.3s ease' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '50%', border: '4px solid var(--border-subtle)', borderTopColor: 'var(--accent-primary)', animation: 'spin 1s linear infinite' }}></div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)' }}>Menganalisis Umpan Berita & Menyusun Rekomendasi Situasional AI...</div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Memverifikasi fakta dari portal berita nasional & media sosial warga Tangerang Selatan</div>
+            </div>
           ) : filteredData.length === 0 ? (
-            <div className="card-surface" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              Tidak ada berita yang cocok dengan filter platform atau situasi ini.
+            <div className="card-surface" style={{ padding: '50px 30px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', border: '1px dashed var(--border-subtle)' }}>
+              <div style={{ fontSize: '3rem' }}>📭</div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>Tidak Ada Liputan yang Sesuai Filter</h3>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', maxWidth: '420px' }}>
+                Saat ini belum ada artikel yang memenuhi kueri penyaringan kategori <strong style={{ color: 'var(--text-main)' }}>{filterKategori}</strong> atau platform <strong style={{ color: 'var(--text-main)' }}>{filterPlatform}</strong>.
+              </p>
+              <button
+                onClick={() => {
+                  setFilterPlatform('ALL');
+                  setFilterKategori('ALL');
+                }}
+                className="btn btn-primary"
+                style={{ padding: '10px 20px', fontSize: '0.85rem', marginTop: '6px', cursor: 'pointer' }}
+              >
+                ↻ Atur Ulang Semua Filter
+              </button>
             </div>
           ) : (
             <>
@@ -575,6 +598,7 @@ export default function HomePage() {
                   <span>🤖 <b>Redaksi AI</b> sedang memverifikasi knowledge base lokal...</span>
                 </div>
               )}
+              <div ref={chatEndRef} />
             </div>
 
             {/* Chat Input */}
