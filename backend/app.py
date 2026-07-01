@@ -130,14 +130,30 @@ def update_status():
     db.execute_query("UPDATE berita SET status = %s WHERE id = %s", (new_status, b_id), commit=True)
     return jsonify({"status": "SUCCESS", "message": f"Berita ID {b_id} berhasil diubah menjadi {new_status}."}), 200
 
+# Global Throttle Cooldown untuk mencegah risiko DDOS / Rate-Limit pada portal eksternal
+LAST_FETCH_TIME = 0
+FETCH_COOLDOWN_SECONDS = 600  # 10 Menit
+
 @app.route('/api/fetch-live', methods=['GET', 'POST'])
 def trigger_live_fetch():
+    global LAST_FETCH_TIME
     if not LIVE_FETCHER_AVAILABLE:
         return jsonify({"status": "ERROR", "message": "Modul live fetcher tidak tersedia."}), 500
+        
+    now = time.time()
+    # Jika penarikan terakhir terjadi dalam waktu kurang dari 10 menit yang lalu (Cooldown aktif)
+    if now - LAST_FETCH_TIME < FETCH_COOLDOWN_SECONDS:
+        return jsonify({
+            "status": "SUCCESS",
+            "cached": True,
+            "message": "Berita live terbaru sudah diperbarui dalam 10 menit terakhir. Menampilkan liputan terkini dari database PostgreSQL guna menjaga stabilitas server eksternal."
+        }), 200
+
     payload = request.get_json(silent=True) or {}
     token = payload.get('apify_token') or request.args.get('apify_token')
     query = payload.get('query') or request.args.get('query')
     
+    LAST_FETCH_TIME = now
     res = live_fetcher.fetch_live_news(apify_token=token, query_custom=query)
     return jsonify(res), 200
 
@@ -242,10 +258,12 @@ def chat_ai():
     }), 200
 
 if __name__ == '__main__':
-    print("[PRODUCTION WSGI] Server Waitress siap melayani di http://localhost:5000")
+    print("[PRODUCTION WSGI] Server Waitress (24 Threads) siap melayani di http://localhost:5000")
     try:
         from waitress import serve
-        serve(app, host='0.0.0.0', port=5000, threads=6)
+        # Ditingkatkan ke 24 threads untuk mencegah antrean blocking saat penarikan data & I/O
+        # Catatan Produksi Linux Colo: Gunakan Gunicorn / Uvicorn untuk performa event-driven maksimal.
+        serve(app, host='0.0.0.0', port=5000, threads=24)
     except ImportError:
         print("[FLASK API] Fallback ke server bawaan...")
         app.run(host='0.0.0.0', port=5000, debug=False)
