@@ -85,6 +85,12 @@ def post_berita():
         return jsonify({"status": "ERROR", "message": "Input teks berita wajib diisi."}), 400
         
     teks = payload['berita']
+    if not isinstance(teks, str) or len(teks.strip()) < 5:
+        return jsonify({"status": "ERROR", "message": "Teks berita tidak valid atau terlalu pendek (minimal 5 karakter)."}), 400
+    if len(teks) > 5000:
+        return jsonify({"status": "ERROR", "message": "Teks berita melebihi batas maksimal (5.000 karakter)."}), 400
+        
+    teks = teks.strip()
     kategori = payload.get('kategori', 'Lokal (Tangsel)')
     sumber = payload.get('sumber', 'Laporan Warga')
     platform = payload.get('platform', 'Instagram')
@@ -113,6 +119,8 @@ def post_berita():
         }
     }), 201
 
+ALLOWED_STATUSES = {'APPROVED', 'REJECTED', 'PENDING'}
+
 @app.route('/api/berita/status', methods=['POST'])
 def update_status():
     payload = request.get_json(silent=True) or {}
@@ -125,14 +133,22 @@ def update_status():
         return jsonify({"status": "ERROR", "message": f"Otentikasi Gagal: {msg}"}), 401
         
     b_id = payload['id']
-    new_status = payload['status']
+    new_status = str(payload['status']).upper()
+    if new_status not in ALLOWED_STATUSES:
+        return jsonify({"status": "ERROR", "message": f"Status tidak valid. Pilihan diperbolehkan: {ALLOWED_STATUSES}"}), 400
+        
+    try:
+        b_id = int(b_id)
+    except (ValueError, TypeError):
+        return jsonify({"status": "ERROR", "message": "ID berita harus berupa angka integer."}), 400
     
     db.execute_query("UPDATE berita SET status = %s WHERE id = %s", (new_status, b_id), commit=True)
     return jsonify({"status": "SUCCESS", "message": f"Berita ID {b_id} berhasil diubah menjadi {new_status}."}), 200
 
-# Global Throttle Cooldown untuk mencegah risiko DDOS / Rate-Limit pada portal eksternal
+# Global Throttle Cooldown & Thread Lock untuk mencegah race condition pada server multi-thread
 LAST_FETCH_TIME = 0
 FETCH_COOLDOWN_SECONDS = 600  # 10 Menit
+fetch_lock = threading.Lock()
 
 @app.route('/api/fetch-live', methods=['GET', 'POST'])
 def trigger_live_fetch():
@@ -141,19 +157,19 @@ def trigger_live_fetch():
         return jsonify({"status": "ERROR", "message": "Modul live fetcher tidak tersedia."}), 500
         
     now = time.time()
-    # Jika penarikan terakhir terjadi dalam waktu kurang dari 10 menit yang lalu (Cooldown aktif)
-    if now - LAST_FETCH_TIME < FETCH_COOLDOWN_SECONDS:
-        return jsonify({
-            "status": "SUCCESS",
-            "cached": True,
-            "message": "Berita live terbaru sudah diperbarui dalam 10 menit terakhir. Menampilkan liputan terkini dari database PostgreSQL guna menjaga stabilitas server eksternal."
-        }), 200
+    with fetch_lock:
+        if now - LAST_FETCH_TIME < FETCH_COOLDOWN_SECONDS:
+            return jsonify({
+                "status": "SUCCESS",
+                "cached": True,
+                "message": "Berita live terbaru sudah diperbarui dalam 10 menit terakhir. Menampilkan liputan terkini dari database PostgreSQL guna menjaga stabilitas server eksternal."
+            }), 200
+        LAST_FETCH_TIME = now
 
     payload = request.get_json(silent=True) or {}
     token = payload.get('apify_token') or request.args.get('apify_token')
     query = payload.get('query') or request.args.get('query')
     
-    LAST_FETCH_TIME = now
     res = live_fetcher.fetch_live_news(apify_token=token, query_custom=query)
     return jsonify(res), 200
 
@@ -203,8 +219,13 @@ def chat_ai():
     if request.method == 'OPTIONS':
         return jsonify({"status": "OK"}), 200
     payload = request.get_json(silent=True) or {}
-    msg_orig = payload.get('message') or ""
-    msg = msg_orig.lower()
+    msg_orig = payload.get('message')
+    if not isinstance(msg_orig, str) or len(msg_orig.strip()) == 0:
+        return jsonify({"status": "ERROR", "message": "Pesan obrolan tidak boleh kosong."}), 400
+    if len(msg_orig) > 1000:
+        return jsonify({"status": "ERROR", "message": "Pesan terlalu panjang (maksimal 1.000 karakter)."}), 400
+        
+    msg = msg_orig.strip().lower()
     
     berita_list = db.execute_query("SELECT judul, kalimat, artikel, kategori, platform FROM berita WHERE status='APPROVED' ORDER BY id DESC LIMIT 30")
     
